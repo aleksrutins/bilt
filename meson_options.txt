@@ -1,0 +1,2 @@
+option('plugins_dir', type: 'string', value: 'auto', description: 'Directory for plugins; defaults to (prefix)/share/bilt/plugins', yield: true)
+option('use_lua', type: 'feature', value: 'auto', description: 'Whether to allow Lua plugins; not implemented yet')
