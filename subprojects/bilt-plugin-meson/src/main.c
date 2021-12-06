@@ -8,8 +8,8 @@
 bilt_plugin_name (meson);
 bilt_plugin_version (0.1.0);
 bilt_plugin_triggers_begin
-  bilt_file_trigger ("meson.build")
   bilt_command_trigger (meson)
+  bilt_file_trigger ("meson.build")
 bilt_plugin_triggers_end
 
 int plugin_main(struct bilt_plugin_trigger trigger, int argc, char **argv) {

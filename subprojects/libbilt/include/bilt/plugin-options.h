@@ -1,3 +1,4 @@
+#pragma once
 struct bilt_plugin_trigger {
   enum bilt_plugin_trigger_type {
     TYPE_FILE,

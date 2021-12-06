@@ -5,6 +5,7 @@ project('libbilt', 'c',
                      'c_std=gnu11',
                    ],
 )
+
 libbilt_include = include_directories('include')
 subdir('src')
 libbilt_dep = declare_dependency(link_with: libbilt_lib, include_directories: libbilt_include)

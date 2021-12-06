@@ -27,4 +27,5 @@ add_project_arguments([
 subproject('libbilt')
 subproject('bilt-plugin-meson')
 subproject('bilt-plugin-make')
+subproject('bilt-plugin-generator')
 subdir('src')

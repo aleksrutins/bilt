@@ -21,108 +21,73 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <bilt/base.h>
-#include <bilt/plugin-options.h>
 #include <bilt/fmt.h>
+#include <bilt/plugin.h>
+#include <bilt/plugin-array.h>
+#include <bilt/plugin-options.h>
 #include <dlfcn.h>
 #include <dirent.h>
 #include <string.h>
 #include <linux/limits.h>
 #include <unistd.h>
 
-struct plugin_data {
-  char *name;
-  char *version;
-  struct bilt_plugin_trigger *triggers;
-};
 
-// https://stackoverflow.com/a/10347734
-int filename_has_extension(char *filename, const char *extension) {
-  char *dot = strchr (filename, '.');
-  if(dot && !strcmp(dot, extension)) {
-    return 1;
-  }
-  return 0;
-}
 
 int
 main (int   argc,
       char *argv[])
 {
-  int result = 0;
-  DIR *d_plugins;
-  struct dirent *dir;
-  d_plugins = opendir (PLUGINS_DIR);
-  if(!d_plugins) {
-    bilt_err ("Error opening plugin directory " PLUGINS_DIR "\n");
-    return 1;
-  }
   char cwd[PATH_MAX];
+  char run_only_command[256] = "";
+  bilt_plugin run_only_plugin = NULL;
   getcwd(cwd, PATH_MAX);
   printf("\e[96mcwd\e[0m\t%s\n", cwd);
   puts("\e[96mscan\e[0m\t" PLUGINS_DIR);
-  while((dir = readdir(d_plugins)) != NULL) {
-    if(dir->d_type == DT_REG) {
-      if(filename_has_extension (dir->d_name, ".so")) {
-        char filename[PATH_MAX];
-        sprintf(filename, "%s/%s", PLUGINS_DIR, dir->d_name);
-        void *plugin_handle = dlopen (filename, RTLD_LAZY | RTLD_LOCAL);
-        int (*plugin_main)(struct bilt_plugin_trigger, int, char **) = dlsym (plugin_handle, "plugin_main");
-        const char **plugin_name = dlsym (plugin_handle, "PLUGIN_NAME");
-        const char **plugin_version = dlsym (plugin_handle, "PLUGIN_VERSION");
-        const struct bilt_plugin_trigger *plugin_triggers = dlsym(plugin_handle, "PLUGIN_TRIGGERS");
-        printf("\e[36mplugin\e[0m\t\e[1m%s\e[0m version \e[1m%s\e[0m\n", *plugin_name, *plugin_version);
 
-        int should_run = 0;
-        const struct bilt_plugin_trigger *triggered_by = NULL;
-        const struct bilt_plugin_trigger *curTrigger = plugin_triggers;
-        while(curTrigger->type != TYPE_TERMINATE_LIST && !should_run) {
-          switch(curTrigger->type) {
-          case TYPE_FILE: {
-            printf("\e[33mtrigger\e[0m\t\e[34mfile\e[0m %s", curTrigger->data);
-            FILE *expected_file = fopen(curTrigger->data, "r");
-            if(expected_file != NULL) {
-              printf("\t\e[1;32mfound\e[0m");
-              should_run = 1;
-              triggered_by = curTrigger;
-              fclose(expected_file);
-            }
-            break;
-          }
-          case TYPE_COMMAND: {
-            printf("\e[33mtrigger\e[0m\t\e[96mcommand\e[0m %s", curTrigger->data);
-            if(argc > 1 && !strcmp(argv[1], curTrigger->data)) {
-              printf("\t\e[1;32mfound\e[0m");
-              should_run = 1;
-              triggered_by = curTrigger;
-            }
-            break;
-          }
-          }
-          putc('\n', stdout);
-          curTrigger++;
-        }
-        if(should_run) {
-          printf("\e[32mrun\e[0m\t%s\n", *plugin_name);
-          int plugin_argc = argc;
-          char **plugin_argv = argv;
-          if(triggered_by->type == TYPE_COMMAND) { // Pass arguments from subcommand
-            plugin_argc = argc - 1;
-            plugin_argv = argv + 1;
-          }
-          int returnval = plugin_main(*triggered_by, plugin_argc, plugin_argv);
-          if(returnval > 0) {
-            result = returnval;
-          }
-        }
-        dlclose(plugin_handle);
-      } else {
-        printf("\e[33mfile\e[0m\t%s\n", dir->d_name);
+  bilt_plugin_array plugins = bilt_plugin_get_all();
+  for(register size_t i = 0; i < plugins.used; i++) {
+    bilt_plugin plugin = plugins.plugins[i];
+    printf("\e[36mplugin\e[0m\t\e[1m%s\e[0m version \e[1m%s\e[0m\n", *bilt_plugin_get_name (plugin), *bilt_plugin_get_version (plugin));
+    struct bilt_plugin_trigger *trigger = bilt_plugin_should_run (plugin, argc, argv);
+    if(!trigger) {
+      bilt_plugin_array_unload (&plugins, i);
+      printf("\tnot running\n");
+    } else {
+      char trigger_type_str[] = "unknown";
+      switch(trigger->type) {
+      case TYPE_FILE: {
+        strcpy (trigger_type_str, "file");
+        break;
       }
-    }
-    if(result > 0) {
-      break;
+      case TYPE_COMMAND: {
+        strcpy (trigger_type_str, "command");
+        strncpy (run_only_command, trigger->data, 256);
+        run_only_plugin = plugin;
+        break;
+      }
+      default: break;
+      }
+      printf("\t\e[1mrunning\e[0m trigger %s \e[1m%s\e[0m\n", trigger_type_str, trigger->data);
     }
   }
-  closedir(d_plugins);
-  return result;
+  if(strcmp(run_only_command, "") && run_only_plugin) {
+    printf("\n\e[36minfo\e[0m\trunning only plugin \e[1m%s\e[0m due to command \e[1m%s\e[0m\n", *bilt_plugin_get_name (run_only_plugin), run_only_command);
+  }
+  // Run plugins
+  for(register size_t i = 0; i < plugins.used; i++) {
+    bilt_plugin plugin = plugins.plugins[i];
+    if(plugin && !(run_only_plugin && run_only_plugin != plugin)) {
+      printf("\n\e[1;32mrun\e[0m\tplugin \e[1m%s\e[0m\n", *bilt_plugin_get_name (plugin));
+      int plugin_argc = argc;
+      char **plugin_argv = argv;
+      struct bilt_plugin_trigger *trigger = bilt_plugin_should_run (plugin, argc, argv);
+      if(trigger->type == TYPE_COMMAND) {
+        plugin_argc--;
+        plugin_argv++;
+      }
+      bilt_plugin_run (plugin, *trigger, plugin_argc, plugin_argv);
+    }
+    if(plugin) bilt_plugin_array_unload (&plugins, i);
+  }
+
 }

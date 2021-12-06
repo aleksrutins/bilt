@@ -1,3 +1,4 @@
+#pragma once
 #include <stddef.h>
 void bilt_info(char *);
 void bilt_warn(char *);
