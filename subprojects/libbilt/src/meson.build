@@ -12,8 +12,12 @@ configure_file(
   configuration: config_h,
 )
 
+deps = [
+	meson.get_compiler('c').find_library('dl')
+]
+
 libbilt_lib = shared_library('bilt', [
 	'main.c',
 	'plugin.c',
 	'plugin-array.c'
-], install: true, include_directories: libbilt_include)
+], install: true, include_directories: libbilt_include, dependencies: deps)
