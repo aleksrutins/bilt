@@ -7,12 +7,19 @@
 #include <bilt/plugin.h>
 #include <bilt/fmt.h>
 #include <bilt/plugin-array.h>
+#include <bilt/misc/limits.h>
 #include <dlfcn.h>
 #include <dirent.h>
 #include <string.h>
-#include <linux/limits.h>
 #include <unistd.h>
 
+#ifdef __APPLE__
+#define LIBRARY_EXTENSION ".dylib"
+#elif defined(_WIN32)
+#define LIBRARY_EXTENSION ".dll"
+#else
+#define LIBRARY_EXTENSION ".so"
+#endif
 
 
 // https://stackoverflow.com/a/10347734
@@ -36,7 +43,7 @@ char *bilt_plugin_path_from_name(char *name) {
   }
   while((dir = readdir(d_plugins)) != NULL && !found_result) {
     if(dir->d_type == DT_REG) {
-      if(filename_has_extension (dir->d_name, ".so")) {
+      if(filename_has_extension (dir->d_name, LIBRARY_EXTENSION)) {
         char filename[PATH_MAX];
         sprintf(filename, "%s/%s", PLUGINS_DIR, dir->d_name);
         void *plugin_handle = dlopen (filename, RTLD_LAZY | RTLD_LOCAL);
@@ -133,7 +140,7 @@ bilt_plugin_array bilt_plugin_get_all() {
   }
   while((dir = readdir(d_plugins)) != NULL) {
     if(dir->d_type == DT_REG) {
-      if(filename_has_extension (dir->d_name, ".so")) {
+      if(filename_has_extension (dir->d_name, LIBRARY_EXTENSION)) {
         char filename[PATH_MAX];
         sprintf(filename, "%s/%s", PLUGINS_DIR, dir->d_name);
         void *plugin_handle = dlopen (filename, RTLD_LAZY | RTLD_LOCAL);

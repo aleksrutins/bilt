@@ -25,10 +25,10 @@
 #include <bilt/plugin.h>
 #include <bilt/plugin-array.h>
 #include <bilt/plugin-options.h>
+#include <bilt/misc/limits.h>
 #include <dlfcn.h>
 #include <dirent.h>
 #include <string.h>
-#include <linux/limits.h>
 #include <unistd.h>
 
 
